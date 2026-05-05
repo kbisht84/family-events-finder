@@ -44,15 +44,19 @@ def get_data(request):
     })
 
 def get_places(request):
+    zip_code = request.GET.get("zip")
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")
     place_type = request.GET.get("type")  # optional
 
-    if not lat or not lon:
-        return JsonResponse({"error": "Location required"}, status=400)
-
     service = GooglePlacesService()
-    places = service.get_places(lat, lon, place_type=place_type)
+    # Priority: ZIP → fallback to lat/lon
+    if zip_code:
+        places = service.get_places_by_zip(zip_code, place_type=place_type)
+    elif lat and lon:
+        places = service.get_places(lat, lon, place_type=place_type)
+    else:
+        return JsonResponse({"error": "Location required"}, status=400)
 
     return JsonResponse({"places": places})
 

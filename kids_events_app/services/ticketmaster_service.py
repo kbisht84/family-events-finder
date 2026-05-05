@@ -44,6 +44,7 @@ class TicketmasterService:
                 "time": e.get("dates", {}).get("start", {}).get("localTime"),
                 "venue": self._get_venue(e),
                 "url": e.get("url"),
+                "image": e.get("images", [{}])[0].get("url"),
             })
 
         return events

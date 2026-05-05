@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+<h1 style="text-align:center;">🎉 Family Events Finder</h1>
+    <p style="text-align:center; color:gray;">
+        Discover events and activities near you
+    </p>
 <head>
-    <title>Calendar</title>
+<!--    <title>Calendar</title>-->
     <style>
         table {
             border-collapse: collapse;
@@ -20,10 +24,48 @@
             height: 60px;
         }
     </style>
+    <style>
+        .event-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .event-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 16px;
+            background: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .event-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .event-card h3 {
+            margin-bottom: 10px;
+        }
+
+        .event-card a {
+            color: #007BFF;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+
+     <style>
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1 style="text-align:center;">Kids Events</h1>
-
     <div style="text-align:center; margin: 20px;">
         <select id="monthSelect">
             {% for m in months %}
@@ -42,17 +84,29 @@
         </select>
     </div>
 
-<!--    <div style="text-align:center; margin: 10px;">-->
-<!--        <input type="text" id="zipInput" placeholder="Enter ZIP code" />-->
-<!--    </div>-->
-    <div style="text-align:center; margin: 10px;">
-        <input type="text" id="cityInput" placeholder="Enter city (e.g., San Jose)" />
-    </div>
     <div>
         {{ calendar|safe }}
     </div>
-    <div style="text-align:center; margin: 20px;">
-        <button id="loadBtn" disabled>Load Events</button>
+
+    <div class="controls">
+    <input type="text" id="cityInput" placeholder="Enter city (e.g., San Jose)" />
+
+    <select id="category">
+        <option value="family">Family</option>
+        <option value="kids">Kids</option>
+        <option value="music">Music</option>
+    </select>
+
+    <button id="loadBtn" disabled>Search Events</button>
+    </div>
+
+    <p style="text-align:center; color:gray;">
+    Enter ZIP or use your current location
+    </p>
+
+
+    <div style="text-align:center; margin: 10px;">
+        <input type="text" id="zipInput" placeholder="Enter ZIP (optional)" />
     </div>
 
     <div style="text-align:center; margin: 20px;">
@@ -67,18 +121,18 @@
     </select>
     </div>
 
-<div id="placesResults" style="width:60%; margin:auto;"></div>
+    <div id="placesResults" style="width:60%; margin:auto;"></div>
 
     <div id="events" style="width:60%; margin:auto;">
     <!-- Events will be rendered here -->
     </div>
+
 
 <script>
 let startDate = null;
 let endDate = null;
 let userLat = null;
 let userLon = null;
-
 
 document.getElementById('monthSelect').addEventListener('change', reloadCalendar);
 document.getElementById('yearSelect').addEventListener('change', reloadCalendar);
@@ -125,12 +179,24 @@ placesBtn.addEventListener("click", function () {
         alert("Location not available yet");
         return;
     }
-
+    let url = "";
     const type = document.getElementById("placeType").value;
+    const zip = document.getElementById("zipInput").value.trim();
 
     resultsDiv.innerHTML = "<p>Loading...</p>";
 
-    fetch(`/api/places?lat=${userLat}&lon=${userLon}&type=${type}`)
+    if (zip) {
+    // ZIP-based search
+    url = `/api/places?zip=${zip}&type=${type}`;
+    } else if (userLat && userLon) {
+        // fallback to geolocation
+        url = `/api/places?lat=${userLat}&lon=${userLon}&type=${type}`;
+    } else {
+        alert("Enter ZIP or allow location access");
+        return;
+    }
+
+    fetch(url)
         .then(res => {
             console.log("STATUS:", res.status);
             return res.json();
@@ -166,7 +232,7 @@ button.addEventListener('click', function () {
     const start = `${year}-${paddedMonth}-${paddedStartDay}`;
     const end = `${year}-${paddedMonth}-${paddedEndDay}`;
 
-    eventsDiv.innerHTML = "<p>Loading events...</p>";
+    eventsDiv.innerHTML = "<p>Searching events...</p>";
 
     fetch(`/api/events?start=${start}&end=${end}&city=${city}&keyword=family`)
         .then(res => res.json())
@@ -277,21 +343,21 @@ function renderEvents(data) {
         return;
     }
 
-    let html = "<h3>Events Nearby</h3><ul>";
+    let html = '<div class="event-grid">';
 
-    data.events.forEach(event => {
+    data.events.forEach(e => {
         html += `
-            <li>
-                <strong>${event.title}</strong><br>
-                ${event.start}<br>
-                ${event.venue || "Location TBD"}<br>
-                <a href="${event.url}" target="_blank">View Event</a>
-            </li>
-            <hr>
+            <div class="event-card">
+                <h3>${e.title}</h3>
+                <p><strong>📅</strong> ${e.date || ""} ${e.time || ""}</p>
+                <p><strong>📍</strong> ${e.venue || "Unknown venue"}</p>
+                <img src="${e.image}" alt="event image" style="width:100%; border-radius:8px;">
+                <a href="${e.url}" target="_blank">View Event →</a>
+            </div>
         `;
     });
 
-    html += "</ul>";
+    html += "</div>";
 
     eventsDiv.innerHTML = html;
 }

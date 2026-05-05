@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 TICKETMASTER_API_KEY = os.getenv("TICKETMASTER_API_KEY")
-
+GOOGLE_GEOCODING_API_KEY = os.getenv("GOOGLE_GEOCODING_API_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
