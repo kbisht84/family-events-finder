@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Calendar</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 60%;
+            margin: 20px auto;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background: #333;
+            color: white;
+        }
+        td {
+            height: 60px;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">Kids Events</h1>
+
+    <div style="text-align:center; margin: 20px;">
+        <select id="monthSelect">
+            {% for m in months %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>
+                    {{ m }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <select id="yearSelect">
+            {% for y in years %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>
+                    {{ y }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+<!--    <div style="text-align:center; margin: 10px;">-->
+<!--        <input type="text" id="zipInput" placeholder="Enter ZIP code" />-->
+<!--    </div>-->
+    <div style="text-align:center; margin: 10px;">
+        <input type="text" id="cityInput" placeholder="Enter city (e.g., San Jose)" />
+    </div>
+    <div>
+        {{ calendar|safe }}
+    </div>
+    <div style="text-align:center; margin: 20px;">
+        <button id="loadBtn" disabled>Load Events</button>
+    </div>
+
+    <div style="text-align:center; margin: 20px;">
+    <button id="placesBtn">Find Family Places Nearby</button>
+
+    <select id="placeType">
+        <option value="">All</option>
+        <option value="park">Parks</option>
+        <option value="museum">Museums</option>
+        <option value="zoo">Zoos</option>
+        <option value="amusement_park">Amusement Parks</option>
+    </select>
+    </div>
+
+<div id="placesResults" style="width:60%; margin:auto;"></div>
+
+    <div id="events" style="width:60%; margin:auto;">
+    <!-- Events will be rendered here -->
+    </div>
+
+<script>
+let startDate = null;
+let endDate = null;
+let userLat = null;
+let userLon = null;
+
+
+document.getElementById('monthSelect').addEventListener('change', reloadCalendar);
+document.getElementById('yearSelect').addEventListener('change', reloadCalendar);
+const button = document.getElementById('loadBtn');
+const eventsDiv = document.getElementById('events');
+
+navigator.geolocation.getCurrentPosition(
+    pos => {
+        userLat = pos.coords.latitude;
+        userLon = pos.coords.longitude;
+    },
+    err => {
+        alert("Location access required");
+    }
+);
+
+document.querySelectorAll('.day').forEach(cell => {
+    cell.addEventListener('click', function() {
+        const day = this.getAttribute('data-day');
+
+        if (!startDate) {
+            startDate = day;
+            this.style.backgroundColor = 'lightblue';
+        } else if (!endDate) {
+            endDate = day;
+            if (endDate < startDate) {
+                [startDate, endDate] = [endDate, startDate]; // swap
+            }
+            highlightRange();
+            button.disabled = false;
+        } else {
+            resetSelection();
+            startDate = day;
+            this.style.backgroundColor = 'lightblue';
+        }
+    });
+});
+
+const resultsDiv = document.getElementById("placesResults");
+
+placesBtn.addEventListener("click", function () {
+
+    if (!userLat || !userLon) {
+        alert("Location not available yet");
+        return;
+    }
+
+    const type = document.getElementById("placeType").value;
+
+    resultsDiv.innerHTML = "<p>Loading...</p>";
+
+    fetch(`/api/places?lat=${userLat}&lon=${userLon}&type=${type}`)
+        .then(res => {
+            console.log("STATUS:", res.status);
+            return res.json();
+        })
+        .then(data => {
+            console.log("DATA:", data);
+            renderPlaces(data.places);
+        })
+        .catch(err => {
+            console.error("ERROR:", err);
+            resultsDiv.innerHTML = "<p style='color:red;'>Error loading places</p>";
+        });
+});
+
+
+
+button.addEventListener('click', function () {
+
+
+    const city = document.getElementById('cityInput').value.trim();
+
+    if (!city) {
+        alert("Please enter a city");
+        return;
+    }
+
+    const year = "{{ year }}";
+    const month = "{{ month }}";
+    const paddedMonth = String(month).padStart(2, '0');
+    const paddedStartDay = String(startDate).padStart(2, '0');
+    const paddedEndDay = String(endDate).padStart(2, '0');
+
+    const start = `${year}-${paddedMonth}-${paddedStartDay}`;
+    const end = `${year}-${paddedMonth}-${paddedEndDay}`;
+
+    eventsDiv.innerHTML = "<p>Loading events...</p>";
+
+    fetch(`/api/events?start=${start}&end=${end}&city=${city}&keyword=family`)
+        .then(res => res.json())
+        .then(data => {
+            console.log("EVENTS:", data);
+            renderEvents(data);
+        })
+        .catch(err => {
+            console.error(err);
+            eventsDiv.innerHTML = "<p style='color:red;'>Error loading events</p>";
+        });
+});
+
+<!--button.addEventListener('click', function() {-->
+<!--    const zip = document.getElementById('zipInput').value;-->
+<!--    if (!zip) {-->
+<!--        alert("Please enter ZIP code");-->
+<!--        return;-->
+<!--    }-->
+
+<!--    const year = "{{ year }}";-->
+<!--    const month = "{{ month }}";-->
+
+<!--    const start = `${year}-${month}-${startDate}`;-->
+<!--    const end = `${year}-${month}-${endDate}`;-->
+
+<!--    fetch(`/api/data?start=${start}&end=${end}&zip=${zip}`)-->
+<!--        .then(res => res.json())-->
+<!--        .then(data => {-->
+<!--            renderEvents(data);-->
+<!--        })-->
+<!--        .catch(err => {-->
+<!--            eventsDiv.innerHTML = "<p style='color:red;'>Error loading data</p>";-->
+<!--        });-->
+<!--});-->
+
+function renderPlaces(places) {
+    if (!places.length) {
+        resultsDiv.innerHTML = "<p>No places found</p>";
+        return;
+    }
+
+    let html = "<h3>Nearby Family Places</h3><ul>";
+
+    places.forEach(p => {
+        html += `
+            <li>
+                <strong>${p.name}</strong><br>
+                ${p.address || "Address not available"}<br>
+                Rating: ${p.rating || "N/A"}
+            </li>
+            <hr>
+        `;
+    });
+
+    html += "</ul>";
+
+    resultsDiv.innerHTML = html;
+}
+
+function reloadCalendar() {
+    const month = document.getElementById('monthSelect').value;
+    const year = document.getElementById('yearSelect').value;
+
+    window.location.href = `?month=${month}&year=${year}`;
+}
+
+function highlightRange() {
+    const days = document.querySelectorAll('.day');
+
+    days.forEach(cell => {
+        const d = parseInt(cell.getAttribute('data-day'));
+        if (d >= startDate && d <= endDate) {
+            cell.style.backgroundColor = 'lightgreen';
+        }
+    });
+}
+
+function callAPI() {
+    const year = "{{ year }}";
+    const month = "{{ month }}";
+
+    const start = `${year}-${month}-${startDate}`;
+    const end = `${year}-${month}-${endDate}`;
+
+    fetch(`/api/data?start=${start}&end=${end}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log("API Response:", data);
+        });
+}
+
+function resetSelection() {
+    startDate = null;
+    endDate = null;
+    button.disabled = true;
+
+    document.querySelectorAll('.day').forEach(cell => {
+        cell.style.backgroundColor = '';
+    });
+
+    eventsDiv.innerHTML = '';
+}
+
+function renderEvents(data) {
+    if (!data.events.length)  {
+        eventsDiv.innerHTML = "<p>No events found</p>";
+        return;
+    }
+
+    let html = "<h3>Events Nearby</h3><ul>";
+
+    data.events.forEach(event => {
+        html += `
+            <li>
+                <strong>${event.title}</strong><br>
+                ${event.start}<br>
+                ${event.venue || "Location TBD"}<br>
+                <a href="${event.url}" target="_blank">View Event</a>
+            </li>
+            <hr>
+        `;
+    });
+
+    html += "</ul>";
+
+    eventsDiv.innerHTML = html;
+}
+
+
+</script>
+</body>
+</html>
