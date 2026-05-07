@@ -33,24 +33,27 @@ class TicketmasterService:
         return self._format_events(data)
 
     def _format_events(self, data):
-        events = []
+        normalized_events = []
 
         embedded = data.get("_embedded", {}).get("events", [])
 
         for e in embedded:
-            events.append({
+            venue = (
+                e.get("_embedded", {})
+                .get("venues", [{}])[0]
+            )
+
+            location = venue.get("location", {})
+            normalized_events.append({
                 "title": e.get("name"),
                 "date": e.get("dates", {}).get("start", {}).get("localDate"),
                 "time": e.get("dates", {}).get("start", {}).get("localTime"),
-                "venue": self._get_venue(e),
+                "venue": venue.get("name"),
+                "address": venue.get("address", {}).get("line1"),
+                "lat": location.get("latitude"),
+                "lon": location.get("longitude"),
                 "url": e.get("url"),
                 "image": e.get("images", [{}])[0].get("url"),
             })
 
-        return events
-
-    def _get_venue(self, event):
-        venues = event.get("_embedded", {}).get("venues", [])
-        if venues:
-            return venues[0].get("name")
-        return "Unknown venue"
+        return normalized_events

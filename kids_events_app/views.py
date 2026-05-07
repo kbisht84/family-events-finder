@@ -18,7 +18,7 @@ def calendar_view(request):
     cal = Calendar(year, month).formatmonth()
 
 
-    return render(request, 'kids_events_app/calendar.html', {
+    return render(request, 'kids_events_app/family_events.html', {
         'calendar': cal,
         'month': month,
         'year': year,

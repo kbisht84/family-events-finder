@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title class="text-2xl font-bold">🎉 Family Events Nearby</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+
+<body>
+
+<div class="min-h-screen bg-gray-100">
+
+    <!-- Header -->
+    <header class="bg-white shadow p-4 text-center">
+        <link rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <h1 class="text-2xl font-bold">🎉 Family Events Nearby</h1>
+        <p class="text-gray-500">Find events & places for families</p>
+    </header>
+
+<!--    <div class="flex flex-col">-->
+
+<!--        <label class="text-sm font-medium mb-1">-->
+<!--            Event Date Range-->
+<!--        </label>-->
+
+<!--        <input-->
+<!--            id="dateRange"-->
+<!--            type="text"-->
+<!--            placeholder="Choose event dates"-->
+<!--            class="border rounded-lg px-4 py-3 text-lg w-96"-->
+<!--            readonly-->
+<!--        />-->
+
+<!--    </div>-->
+
+    <!-- Search Panel -->
+    <div class="bg-white p-4 shadow flex flex-wrap gap-3 justify-center">
+        <input
+            id="dateRange"
+            type="text"
+            placeholder="Choose event dates"
+            class="border rounded-lg px-4 py-3 text-lg w-96"
+            readonly
+            />
+        <input id="cityInput" class="border p-2 rounded" placeholder="City (San Jose)" />
+
+        <input id="zipInput" class="border p-2 rounded" placeholder="ZIP (optional)" />
+
+        <select id="category" class="border p-2 rounded">
+            <option value="family">Family</option>
+            <option value="kids">Kids</option>
+            <option value="parks">Parks</option>
+            <option value="museums">Museums</option>
+        </select>
+
+        <select id="mode">
+            <option value="events">Events</option>
+            <option value="places">Places</option>
+        </select>
+
+        <button id="searchBtn"
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Search
+        </button>
+    </div>
+
+    <!-- Content Area -->
+    <div class="flex">
+
+        <!-- LEFT: Results -->
+        <div id="results" class="w-1/2 p-4 overflow-y-auto h-[80vh]">
+            <!-- Cards render here -->
+        </div>
+
+        <!-- RIGHT: Map -->
+        <div id="map" class="w-1/2 h-[80vh]"></div>
+
+    </div>
+</div>
+
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+let selectedStartDate = null;
+let selectedEndDate = null;
+const resultsDiv = document.getElementById("results");
+
+flatpickr("#dateRange", {
+
+    mode: "range",
+
+    minDate: "today",
+
+    // INTERNAL API FORMAT
+    dateFormat: "Y-m-d",
+
+    // USER DISPLAY FORMAT
+    altInput: true,
+    altFormat: "F j, Y",
+
+    showMonths: 2,
+
+    onChange: function(selectedDates) {
+
+        console.log(selectedDates);
+
+        if (selectedDates.length === 2) {
+
+            // Convert for API
+            selectedStartDate =
+                flatpickr.formatDate(selectedDates[0], "Y-m-d");
+
+            selectedEndDate =
+                flatpickr.formatDate(selectedDates[1], "Y-m-d");
+
+            console.log("START:", selectedStartDate);
+            console.log("END:", selectedEndDate);
+        }
+    }
+});
+
+document.getElementById("searchBtn").addEventListener("click", async () => {
+
+  const city = document.getElementById("cityInput").value.trim();
+  const zip = document.getElementById("zipInput").value.trim();
+  const mode = document.getElementById("mode").value;
+
+
+  let url = "";
+
+  if (mode === "events") {
+    if (!city) {
+      alert("Enter city for events");
+      return;
+    }
+    url = `/api/events?city=${city}` +
+            `&start=${selectedStartDate}` +
+            `&end=${selectedEndDate}`;
+  } else {
+    if (zip) {
+      url = `/api/places?zip=${encodeURIComponent(zip)}`;
+    } else if (window.userLat && window.userLon) {
+      url = `/api/places?lat=${window.userLat}&lon=${window.userLon}`;
+    } else {
+      alert("Enter ZIP or allow location");
+      return;
+    }
+  }
+
+  resultsDiv.innerHTML = "<p>Loading...</p>";
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (mode === "events") {
+      renderEvents(data.events || []);
+      renderMapMarkers(data.events || []);
+    } else {
+      renderPlaces(data.places || []);
+      renderMapMarkers(data.places || []);
+    }
+  } catch (err) {
+    console.error(err);
+    resultsDiv.innerHTML = "<p style='color:red'>Error loading data</p>";
+  }
+});
+
+function renderEvents(events) {
+
+    if (!events || events.length === 0) {
+        results.innerHTML = "<p>No results found</p>";
+        return;
+    }
+
+    let html = "";
+
+    events.forEach(e => {
+        html += `
+        <div class="bg-white rounded-lg shadow p-4 mb-4 hover:shadow-lg transition">
+
+            <h3 class="text-lg font-semibold">${e.title}</h3>
+
+            <p class="text-sm text-gray-600">
+                📅 ${e.date || ""} ${e.time || ""}
+            </p>
+
+            <p class="text-sm text-gray-600">
+                📍 ${e.venue || "Unknown"}
+            </p>
+
+            <a href="${e.url}" target="_blank"
+               class="text-blue-500 font-medium">
+               View Event →
+            </a>
+
+        </div>
+        `;
+    });
+
+    results.innerHTML = html;
+}
+
+function renderPlaces(places) {
+  if (!Array.isArray(places) || places.length === 0) {
+    resultsDiv.innerHTML = "<p>No places found</p>";
+    return;
+  }
+
+  let html = "";
+
+  places.forEach(p => {
+    html += `
+      <div class="bg-white shadow rounded p-4 mb-4">
+        <h3 style="font-weight:600;">${p.name || p.title}</h3>
+
+        <p>📍 ${p.address || "No address"}</p>
+        <p>⭐ ${p.rating || "N/A"}</p>
+      </div>
+    `;
+  });
+
+  resultsDiv.innerHTML = html;
+}
+
+let map;
+let markers = [];
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 37.7749, lng: -122.4194 },
+    zoom: 10,
+  });
+}
+
+function renderMapMarkers(items) {
+
+<!--   clear old markers-->
+  markers.forEach(m => m.setMap(null));
+  markers = [];
+
+  if (!Array.isArray(items) || items.length === 0) return;
+
+  if (!window.google || !map) {
+    console.error("Google Maps not loaded yet");
+    return;
+     }
+
+  const bounds = new google.maps.LatLngBounds();
+
+  items.forEach(item => {
+    if (!item.lat || !item.lon) return;
+
+    const position = {
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon)
+    };
+
+    const marker = new google.maps.Marker({
+      position,
+      map,
+      title: item.title || item.name
+    });
+
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div>
+          <strong>${item.title || item.name}</strong><br>
+          ${item.address || item.venue || ""}<br>
+          ${item.url ? `<a href="${item.url}" target="_blank">View</a>` : ""}
+        </div>
+      `
+    });
+
+    marker.addListener("click", () => {
+      infoWindow.open(map, marker);
+    });
+
+    markers.push(marker);
+    bounds.extend(position);
+  });
+
+  if (markers.length > 0) {
+    map.fitBounds(bounds);
+  }
+}
+</script>
+<!-- GOOGLE MAPS SCRIPT LAST -->
+    <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCf9DH2YqzT5kxKsmuT3EZAJrF-LuqxNgs&callback=initMap">
+    </script>
+</body>
+</html>
